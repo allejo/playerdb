@@ -4,9 +4,8 @@
 #include "bzfsAPI.h"
 #include "plugin_utils.h"
 
-#include "cJSON.h"
-
 #include <string>
+#include <vector>
 #include <queue>
 
 class playerdb : public bz_Plugin, bz_BaseURLHandler, bz_CustomSlashCommandHandler
@@ -78,7 +77,7 @@ void playerdb::Event ( bz_EventData * eventData )
   // Add the join to the queue
   joinQueue.push(jr);
 
-  bz_debugMessagef(0, "PLAYERDB-JOIN: Queued join for '%s'", jr.callsign.c_str());
+  //bz_debugMessagef(0, "PLAYERDB-JOIN: Queued join for '%s'", jr.callsign.c_str());
 
   webBusy = true;
   nextUpdate();
@@ -105,7 +104,7 @@ void playerdb::nextUpdate() {
     // Start the HTTP job
     bz_addURLJob(URL.c_str(), this, postData.c_str());
 
-    bz_debugMessagef(0, "PLAYERDB-REQUEST: Sent join for '%s'", jr.callsign.c_str());
+    //bz_debugMessagef(0, "PLAYERDB-REQUEST: Sent join for '%s'", jr.callsign.c_str());
 
     // Remove the item from the queue
     joinQueue.pop();
@@ -129,16 +128,14 @@ void playerdb::URLDone( const char* /*URL*/, void * data, unsigned int size, boo
 
   if (complete) {
 
-    cJSON *root = cJSON_Parse(webData.c_str());
+    std::vector<std::string> lines = tokenize(webData, std::string("\n"), 0, false);
 
-    if (root) {
-      cJSON *error = cJSON_GetObjectItem(root,"error");
-      if (error) {
-        bz_sendTextMessagef(BZ_SERVER, eAdministrators, "Player DB Error: %s", error->valuestring);
-      }
+    std::vector<std::string>::const_iterator itr = lines.begin();
+    for (itr = lines.begin(); itr != lines.end(); ++itr) {
+      bz_sendTextMessagef(BZ_SERVER, eAdministrators, "Return Data: %s", itr->c_str());
     }
     
-    bz_debugMessagef(0, "PLAYERDB-RESULT: %s", webData.c_str());
+    //bz_debugMessagef(0, "PLAYERDB-RESULT: %s", webData.c_str());
 
     if (!joinQueue.empty()) {
       nextUpdate();
