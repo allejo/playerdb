@@ -1,0 +1,13 @@
+syntax: regexp
+^.deps
+^.libs
+Makefile.in$
+Makefile$
+^playerdb.conf$
+
+syntax: glob
+*.old
+*.lo
+*.o
+*.la
+
