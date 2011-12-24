@@ -16,27 +16,40 @@ class playerdb : public bz_Plugin, bz_BaseURLHandler, bz_CustomSlashCommandHandl
   // bz_Plugin
   virtual const char* Name (){return "Player DB";}
   virtual void Init ( const char* config);
+  virtual void Cleanup ();
   virtual void Event ( bz_EventData * eventData );
 
   // bz_BaseURLHandler
   bool webBusy;
   std::string webData;
+
   typedef struct {
+    std::string action;
+
+    // Query action
+    std::string query;
+    int playerID;
+
+    // Join action
     std::string callsign;
     std::string bzid;
     std::string ipaddress;
     std::string build;
-  } pdbJoinRecord;
+  } pdbQueueRecord;
 
-  // This will contain joins that need to be sent off
-  std::queue<pdbJoinRecord> joinQueue;
 
-  void nextUpdate();
+  // This will contain requests that need to be sent off
+  std::queue<pdbQueueRecord> webQueue;
+
+  // This will contain the item that is currently being processed
+  pdbQueueRecord currentItem;
+
+  void doWeb();
   
   virtual void URLDone ( const char* URL, void * data, unsigned int size, bool complete );
 
   // bz_CustomSlashCommandHandler
-  virtual bool SlashCommand ( int /*playerID*/, bz_ApiString /*command*/, bz_ApiString /*message*/, bz_APIStringList* /*param*/ ){return false;};
+  virtual bool SlashCommand ( int /*playerID*/, bz_ApiString /*command*/, bz_ApiString /*message*/, bz_APIStringList* /*param*/ );
 };
 
 BZ_PLUGIN(playerdb)
@@ -54,10 +67,20 @@ void playerdb::Init ( const char* configFile )
     }
 
     Register(bz_ePlayerJoinEvent);
+    bz_registerCustomSlashCommand ("lookup",this);
+    bz_registerCustomSlashCommand ("ipmap",this);
   }
   else {
     // TODO: Print error and/or unload plugin
+    bz_debugMessage(0, "Player DB: Missing configuration file.");
   }
+}
+
+void playerdb::Cleanup ( void )
+{
+  bz_removeCustomSlashCommand ("lookup");
+  bz_removeCustomSlashCommand ("ipmap");
+  Flush();
 }
 
 void playerdb::Event ( bz_EventData * eventData )
@@ -68,38 +91,56 @@ void playerdb::Event ( bz_EventData * eventData )
   bz_PlayerJoinPartEventData_V1 *joinData = (bz_PlayerJoinPartEventData_V1*)eventData;
 
   // Generate a join record
-  pdbJoinRecord jr;
+  pdbQueueRecord jr;
+  jr.action = "join";
   jr.callsign = joinData->record->callsign.c_str();
   jr.bzid = joinData->record->bzID.c_str();
   jr.ipaddress = joinData->record->ipAddress.c_str();
   jr.build = joinData->record->clientVersion.c_str();
 
   // Add the join to the queue
-  joinQueue.push(jr);
+  webQueue.push(jr);
 
   //bz_debugMessagef(0, "PLAYERDB-JOIN: Queued join for '%s'", jr.callsign.c_str());
 
-  webBusy = true;
-  nextUpdate();
+  doWeb();
 
 }
 
-void playerdb::nextUpdate() {
+void playerdb::doWeb() {
 
-  if (!joinQueue.empty()) {
+  if (!webQueue.empty() && !webBusy) {
+    // Mark it as busy
+    webBusy = true;
+
     // Clear the data
     webData = "";
 
+    // This is where the POST data will be stored
+    std::string postData = "";
+
     // Get the oldest item from the queue
-    pdbJoinRecord jr = joinQueue.front();
+    currentItem = webQueue.front();
     
-    // Generate our POST data string
-    std::string postData = "action=join";
-    postData += bz_format("&apikey=%s", bz_urlEncode(APIKey.c_str()));
-    postData += bz_format("&callsign=%s", bz_urlEncode(jr.callsign.c_str()));
-    postData += bz_format("&bzid=%s", bz_urlEncode(jr.bzid.c_str()));
-    postData += bz_format("&ipaddress=%s", bz_urlEncode(jr.ipaddress.c_str()));
-    postData += bz_format("&build=%s", bz_urlEncode(jr.build.c_str()));
+    if (currentItem.action == "join") {
+      // Generate our POST data string
+
+      postData = "action=join";
+      postData += bz_format("&apikey=%s", bz_urlEncode(APIKey.c_str()));
+      postData += bz_format("&callsign=%s", bz_urlEncode(currentItem.callsign.c_str()));
+      postData += bz_format("&bzid=%s", bz_urlEncode(currentItem.bzid.c_str()));
+      postData += bz_format("&ipaddress=%s", bz_urlEncode(currentItem.ipaddress.c_str()));
+      postData += bz_format("&build=%s", bz_urlEncode(currentItem.build.c_str()));
+
+      bz_sendTextMessagef(BZ_SERVER, eAdministrators, "Sending a join for: %s", currentItem.callsign.c_str());
+    }
+    else if (currentItem.action == "query") {
+      postData = "action=query";
+      postData += bz_format("&apikey=%s", bz_urlEncode(APIKey.c_str()));
+      postData += bz_format("&query=%s", bz_urlEncode(currentItem.query.c_str()));
+
+      bz_sendTextMessagef(BZ_SERVER, eAdministrators, "Sending a query for: %s", currentItem.query.c_str());
+    }
 
     // Start the HTTP job
     bz_addURLJob(URL.c_str(), this, postData.c_str());
@@ -107,7 +148,7 @@ void playerdb::nextUpdate() {
     //bz_debugMessagef(0, "PLAYERDB-REQUEST: Sent join for '%s'", jr.callsign.c_str());
 
     // Remove the item from the queue
-    joinQueue.pop();
+    webQueue.pop();
   }
 
 }
@@ -127,25 +168,64 @@ void playerdb::URLDone( const char* /*URL*/, void * data, unsigned int size, boo
   }
 
   if (complete) {
+    webBusy = false;
 
     std::vector<std::string> lines = tokenize(webData, std::string("\n"), 0, false);
 
-    std::vector<std::string>::const_iterator itr = lines.begin();
-    for (itr = lines.begin(); itr != lines.end(); ++itr) {
-      bz_sendTextMessagef(BZ_SERVER, eAdministrators, "Return Data: %s", itr->c_str());
+    if (currentItem.action == "query") {
+      std::vector<std::string>::const_iterator itr = lines.begin();
+      for (itr = lines.begin(); itr != lines.end(); ++itr) {
+        if (itr->length() > 7 && itr->substr(0, 6) == "ERROR:") {
+          bz_sendTextMessage(BZ_SERVER, eAdministrators, itr->c_str());
+        }
+        else {
+          bz_sendTextMessagef(BZ_SERVER, currentItem.playerID, itr->c_str());
+        }
+      }
     }
     
     //bz_debugMessagef(0, "PLAYERDB-RESULT: %s", webData.c_str());
 
-    if (!joinQueue.empty()) {
-      nextUpdate();
-    }
-    else {
-      webBusy = false;
-    }
+    doWeb();
   }
 }
 
+bool playerdb::SlashCommand ( int playerID, bz_ApiString cmd, bz_ApiString message, bz_APIStringList* )
+{
+
+  if (strcasecmp (cmd.c_str(), "lookup") != 0 && strcasecmp (cmd.c_str(), "ipmap") != 0) {
+        return false;
+  }
+
+  if (! bz_hasPerm(playerID,"PLAYERLIST")) {
+    bz_sendTextMessage (BZ_SERVER, playerID, "You do not have permission to run the lookup command");
+    return true;
+  }
+
+  if (message.c_str()[0] == '\0') {
+    bz_sendTextMessage (BZ_SERVER, playerID, "Usage : /lookup <callsign>|<ipaddress>");
+    return true;
+  }
+
+  //bz_sendTextMessage (BZ_SERVER, playerID, message.c_str());
+  pdbQueueRecord jr;
+  jr.action = "query";
+  jr.query = message.c_str();
+  jr.playerID = playerID;
+
+  // Add the query to the queue
+  webQueue.push(jr);
+
+  //bz_debugMessagef(0, "PLAYERDB-JOIN: Queued join for '%s'", jr.callsign.c_str());
+
+  doWeb();
+
+  return true;
+}
+
+  
+
+  
 
 // Local Variables: ***
 // mode:C++ ***
