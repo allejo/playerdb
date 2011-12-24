@@ -101,8 +101,6 @@ void playerdb::Event ( bz_EventData * eventData )
   // Add the join to the queue
   webQueue.push(jr);
 
-  //bz_debugMessagef(0, "PLAYERDB-JOIN: Queued join for '%s'", jr.callsign.c_str());
-
   doWeb();
 
 }
@@ -131,21 +129,15 @@ void playerdb::doWeb() {
       postData += bz_format("&bzid=%s", bz_urlEncode(currentItem.bzid.c_str()));
       postData += bz_format("&ipaddress=%s", bz_urlEncode(currentItem.ipaddress.c_str()));
       postData += bz_format("&build=%s", bz_urlEncode(currentItem.build.c_str()));
-
-      bz_sendTextMessagef(BZ_SERVER, eAdministrators, "Sending a join for: %s", currentItem.callsign.c_str());
     }
     else if (currentItem.action == "query") {
       postData = "action=query";
       postData += bz_format("&apikey=%s", bz_urlEncode(APIKey.c_str()));
       postData += bz_format("&query=%s", bz_urlEncode(currentItem.query.c_str()));
-
-      bz_sendTextMessagef(BZ_SERVER, eAdministrators, "Sending a query for: %s", currentItem.query.c_str());
     }
 
     // Start the HTTP job
     bz_addURLJob(URL.c_str(), this, postData.c_str());
-
-    //bz_debugMessagef(0, "PLAYERDB-REQUEST: Sent join for '%s'", jr.callsign.c_str());
 
     // Remove the item from the queue
     webQueue.pop();
@@ -184,8 +176,6 @@ void playerdb::URLDone( const char* /*URL*/, void * data, unsigned int size, boo
       }
     }
     
-    //bz_debugMessagef(0, "PLAYERDB-RESULT: %s", webData.c_str());
-
     doWeb();
   }
 }
@@ -207,7 +197,6 @@ bool playerdb::SlashCommand ( int playerID, bz_ApiString cmd, bz_ApiString messa
     return true;
   }
 
-  //bz_sendTextMessage (BZ_SERVER, playerID, message.c_str());
   pdbQueueRecord jr;
   jr.action = "query";
   jr.query = message.c_str();
@@ -215,8 +204,6 @@ bool playerdb::SlashCommand ( int playerID, bz_ApiString cmd, bz_ApiString messa
 
   // Add the query to the queue
   webQueue.push(jr);
-
-  //bz_debugMessagef(0, "PLAYERDB-JOIN: Queued join for '%s'", jr.callsign.c_str());
 
   doWeb();
 
