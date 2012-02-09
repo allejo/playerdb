@@ -21,6 +21,8 @@ class playerdb : public bz_Plugin, bz_BaseURLHandler, bz_CustomSlashCommandHandl
 {
   std::string URL;
   std::string APIKey;
+  bool LookupEnabled;
+  std::string LookupPermission;
 
   // bz_Plugin
   virtual const char* Name (){return "Player DB";}
@@ -73,6 +75,11 @@ void playerdb::Init ( const char* configFile )
     if (!config.errors) {
       URL =    config.item("API", "URL");
       APIKey = config.item("API", "Key");
+
+      std::string LookupEnabledString = config.item("Lookup", "Enabled");
+      LookupEnabled = (LookupEnabledString == "yes" || LookupEnabledString == "true" || LookupEnabledString == "1");
+
+      LookupPermission = config.item("Lookup", "Permission");
     }
 
     Register(bz_ePlayerJoinEvent);
@@ -198,7 +205,12 @@ bool playerdb::SlashCommand ( int playerID, bz_ApiString cmd, bz_ApiString messa
         return false;
   }
 
-  if (! bz_hasPerm(playerID,"PLAYERLIST")) {
+  if (!LookupEnabled) {
+    bz_sendTextMessage (BZ_SERVER, playerID, "The lookup function is not enabled.");
+    return true;
+  }
+
+  if (! bz_hasPerm(playerID,LookupPermission.c_str())) {
     bz_sendTextMessage (BZ_SERVER, playerID, "You do not have permission to run the lookup command");
     return true;
   }
