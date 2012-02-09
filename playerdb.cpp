@@ -83,6 +83,8 @@ void playerdb::Init ( const char* configFile )
     // TODO: Print error and/or unload plugin
     bz_debugMessage(0, "Player DB: Missing configuration file.");
   }
+
+  MaxWaitTime = 0.1f;
 }
 
 void playerdb::Cleanup ( void )
