@@ -14,7 +14,7 @@ not need modifications for future improvements to take effect.
 The playerdb plugin is licensed under the GNU LGPL 2.1 (or any later
 version). Please see the provided COPYING file for the full license.
 
-The playerdb website is licensed under the GNU AGPL (or any later
+The playerdb website is licensed under the GNU AGPL 3 (or any later
 version).  Please see the COPYING file in the bz_playerdb_website repo
 linked to at the end of this readme.
 
