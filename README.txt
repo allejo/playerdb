@@ -22,7 +22,7 @@ linked to at the end of this readme.
  Project History
 =========================
 
-Version 1.0 - February 10, 2012
+Version 1.0.0 - February 10, 2012
 * Initial versioned release
 
 =========================
