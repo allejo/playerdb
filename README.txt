@@ -22,7 +22,7 @@ linked to at the end of this readme.
  Project History
 =========================
 
-Version 1.0 - February 9, 2012
+Version 1.0 - February 10, 2012
 * Initial versioned release
 
 =========================
@@ -30,7 +30,7 @@ Version 1.0 - February 9, 2012
 =========================
 
 The plugin tracks when a player joins the server. It grabs the IP
-address, callsign, and BZID (if the user is registered) and stores this
+address, callsign, and BZID (if the user is identified) and stores this
 data in a queue. Also, once bzfs populates the client build version,
 this will be stored as well.  A web request is then initiated to send
 this data to a central web API.  This website will store the data in a
