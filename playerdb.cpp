@@ -42,32 +42,34 @@ class playerdb : public bz_Plugin, bz_BaseURLHandler, bz_CustomSlashCommandHandl
 
   typedef struct {
     std::string action;
-
-    // Query action
     std::string query;
     int playerID;
-
-    // Join action
-    std::string callsign;
-    std::string bzid;
-    std::string ipaddress;
-    std::string build;
-  } pdbQueueRecord;
+  } pdbQueryRecord;
 
 
   // This will contain requests that need to be sent off
-  std::queue<pdbQueueRecord> webQueue;
+  std::queue<pdbQueryRecord> queryQueue;
 
   // This will contain the item that is currently being processed
-  pdbQueueRecord currentItem;
+  pdbQueryRecord currentQuery;
 
-  void doWeb();
+  void nextQuery();
   
   virtual void URLDone ( const char* URL, void * data, unsigned int size, bool complete );
+  virtual void URLTimeout ( const char* URL, int errorCode );
+  virtual void URLError ( const char* URL, int errorCode, const char * errorString );
 
   // bz_CustomSlashCommandHandler
   virtual bool SlashCommand ( int /*playerID*/, bz_ApiString /*command*/, bz_ApiString /*message*/, bz_APIStringList* /*param*/ );
+
 };
+
+class joinhandler : public bz_BaseURLHandler
+{
+  virtual void URLDone ( const char* /*URL*/, void * /*data*/, unsigned int /*size*/, bool /*complete*/ ) {};
+};
+
+joinhandler * joinHandler;
 
 BZ_PLUGIN(playerdb)
 
@@ -97,6 +99,8 @@ void playerdb::Init ( const char* configFile )
     bz_debugMessage(0, "Player DB: Missing configuration file.");
   }
 
+  joinHandler = new joinhandler;
+
   MaxWaitTime = 0.1f;
 }
 
@@ -114,24 +118,21 @@ void playerdb::Event ( bz_EventData * eventData )
 
   bz_PlayerJoinPartEventData_V1 *joinData = (bz_PlayerJoinPartEventData_V1*)eventData;
 
-  // Generate a join record
-  pdbQueueRecord jr;
-  jr.action = "join";
-  jr.callsign = joinData->record->callsign.c_str();
-  jr.bzid = joinData->record->bzID.c_str();
-  jr.ipaddress = joinData->record->ipAddress.c_str();
-  jr.build = joinData->record->clientVersion.c_str();
+  // Assemble the POST data
+  std::string postData = "action=join";
+  postData += bz_format("&apikey=%s", bz_urlEncode(APIKey.c_str()));
+  postData += bz_format("&callsign=%s", bz_urlEncode(joinData->record->callsign.c_str()));
+  postData += bz_format("&bzid=%s", bz_urlEncode(joinData->record->bzID.c_str()));
+  postData += bz_format("&ipaddress=%s", bz_urlEncode(joinData->record->ipAddress.c_str()));
+  postData += bz_format("&build=%s", bz_urlEncode(joinData->record->clientVersion.c_str()));
 
-  // Add the join to the queue
-  webQueue.push(jr);
-
-  doWeb();
-
+  // Start the HTTP job
+  bz_addURLJob(URL.c_str(), joinHandler, postData.c_str());
 }
 
-void playerdb::doWeb() {
+void playerdb::nextQuery() {
 
-  if (!webQueue.empty() && !webBusy) {
+  if (!queryQueue.empty() && !webBusy) {
     // Mark it as busy
     webBusy = true;
 
@@ -139,32 +140,19 @@ void playerdb::doWeb() {
     webData = "";
 
     // This is where the POST data will be stored
-    std::string postData = "";
+    std::string postData = "action=query";
 
     // Get the oldest item from the queue
-    currentItem = webQueue.front();
+    currentQuery = queryQueue.front();
     
-    if (currentItem.action == "join") {
-      // Generate our POST data string
-
-      postData = "action=join";
-      postData += bz_format("&apikey=%s", bz_urlEncode(APIKey.c_str()));
-      postData += bz_format("&callsign=%s", bz_urlEncode(currentItem.callsign.c_str()));
-      postData += bz_format("&bzid=%s", bz_urlEncode(currentItem.bzid.c_str()));
-      postData += bz_format("&ipaddress=%s", bz_urlEncode(currentItem.ipaddress.c_str()));
-      postData += bz_format("&build=%s", bz_urlEncode(currentItem.build.c_str()));
-    }
-    else if (currentItem.action == "query") {
-      postData = "action=query";
-      postData += bz_format("&apikey=%s", bz_urlEncode(APIKey.c_str()));
-      postData += bz_format("&query=%s", bz_urlEncode(currentItem.query.c_str()));
-    }
+    postData += bz_format("&apikey=%s", bz_urlEncode(APIKey.c_str()));
+    postData += bz_format("&query=%s", bz_urlEncode(currentQuery.query.c_str()));
 
     // Start the HTTP job
     bz_addURLJob(URL.c_str(), this, postData.c_str());
 
     // Remove the item from the queue
-    webQueue.pop();
+    queryQueue.pop();
   }
 
 }
@@ -188,27 +176,38 @@ void playerdb::URLDone( const char* /*URL*/, void * data, unsigned int size, boo
 
     std::vector<std::string> lines = tokenize(webData, std::string("\n"), 0, false);
 
-    if (currentItem.action == "query") {
-      std::vector<std::string>::const_iterator itr = lines.begin();
-      for (itr = lines.begin(); itr != lines.end(); ++itr) {
-        if (itr->length() > 7 && itr->substr(0, 6) == "ERROR:") {
-          bz_sendTextMessage(BZ_SERVER, eAdministrators, itr->c_str());
-        }
-        else {
-          bz_sendTextMessagef(BZ_SERVER, currentItem.playerID, itr->c_str());
-        }
+    std::vector<std::string>::const_iterator itr = lines.begin();
+    for (itr = lines.begin(); itr != lines.end(); ++itr) {
+      if (itr->length() > 7 && itr->substr(0, 6) == "ERROR:") {
+        bz_sendTextMessage(BZ_SERVER, eAdministrators, itr->c_str());
+      }
+      else {
+        bz_sendTextMessagef(BZ_SERVER, currentQuery.playerID, itr->c_str());
       }
     }
     
-    doWeb();
+    nextQuery();
   }
+
+}
+
+void playerdb::URLTimeout( const char* /*URL*/, int /* errorCode*/ )
+{
+  bz_sendTextMessage(BZ_SERVER, currentQuery.playerID, "A timeout occured during the lookup.");
+  nextQuery();
+}
+
+void playerdb::URLError( const char* /*URL*/, int /*errorCode*/, const char * /*errorString*/ )
+{
+  bz_sendTextMessage(BZ_SERVER, currentQuery.playerID, "An error occured during the lookup.");
+  nextQuery();
 }
 
 bool playerdb::SlashCommand ( int playerID, bz_ApiString cmd, bz_ApiString message, bz_APIStringList* )
 {
 
   if (strcasecmp (cmd.c_str(), "lookup") != 0 && strcasecmp (cmd.c_str(), "ipmap") != 0) {
-        return false;
+    return false;
   }
 
   if (!LookupEnabled) {
@@ -226,15 +225,14 @@ bool playerdb::SlashCommand ( int playerID, bz_ApiString cmd, bz_ApiString messa
     return true;
   }
 
-  pdbQueueRecord jr;
-  jr.action = "query";
+  pdbQueryRecord jr;
   jr.query = message.c_str();
   jr.playerID = playerID;
 
   // Add the query to the queue
-  webQueue.push(jr);
+  queryQueue.push(jr);
 
-  doWeb();
+  nextQuery();
 
   return true;
 }
