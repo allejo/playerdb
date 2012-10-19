@@ -194,12 +194,14 @@ void playerdb::URLDone( const char* /*URL*/, void * data, unsigned int size, boo
 void playerdb::URLTimeout( const char* /*URL*/, int /* errorCode*/ )
 {
   bz_sendTextMessage(BZ_SERVER, currentQuery.playerID, "A timeout occured during the lookup.");
+  webBusy = false;
   nextQuery();
 }
 
 void playerdb::URLError( const char* /*URL*/, int /*errorCode*/, const char * /*errorString*/ )
 {
   bz_sendTextMessage(BZ_SERVER, currentQuery.playerID, "An error occured during the lookup.");
+  webBusy = false;
   nextQuery();
 }
 
