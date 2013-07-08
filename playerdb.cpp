@@ -23,7 +23,7 @@
 #include <vector>
 #include <queue>
 
-class playerdb : public bz_Plugin, bz_BaseURLHandler, bz_CustomSlashCommandHandler
+class playerdb : public bz_Plugin, public bz_BaseURLHandler, public bz_CustomSlashCommandHandler
 {
   std::string URL;
   std::string APIKey;
@@ -55,7 +55,7 @@ class playerdb : public bz_Plugin, bz_BaseURLHandler, bz_CustomSlashCommandHandl
 
   void nextQuery();
   
-  virtual void URLDone ( const char* URL, void * data, unsigned int size, bool complete );
+  virtual void URLDone ( const char* URL, const void * data, unsigned int size, bool complete );
   virtual void URLTimeout ( const char* URL, int errorCode );
   virtual void URLError ( const char* URL, int errorCode, const char * errorString );
 
@@ -66,7 +66,7 @@ class playerdb : public bz_Plugin, bz_BaseURLHandler, bz_CustomSlashCommandHandl
 
 class joinhandler : public bz_BaseURLHandler
 {
-  virtual void URLDone ( const char* /*URL*/, void * /*data*/, unsigned int /*size*/, bool /*complete*/ ) {};
+  virtual void URLDone ( const char* /*URL*/, const void * /*data*/, unsigned int /*size*/, bool /*complete*/ ) {};
 };
 
 joinhandler * joinHandler;
@@ -157,7 +157,7 @@ void playerdb::nextQuery() {
 
 }
 
-void playerdb::URLDone( const char* /*URL*/, void * data, unsigned int size, bool complete )
+void playerdb::URLDone( const char* /*URL*/, const void * data, unsigned int size, bool complete )
 {
   if (!webBusy)
     return;
