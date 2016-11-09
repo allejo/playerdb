@@ -129,7 +129,7 @@ void PlayerDB::Event ( bz_EventData * eventData )
             postData += bz_format("&ipaddress=%s", bz_urlEncode(joinData->record->ipAddress.c_str()));
             postData += bz_format("&build=%s", bz_urlEncode(joinData->record->clientVersion.c_str()));
 
-            bz_addURLJob(URL.c_str(), this, postData.c_str());
+            bz_addURLJob(URL.c_str(), NULL, postData.c_str());
         }
         break;
 
@@ -159,9 +159,6 @@ void PlayerDB::nextQuery()
 
 void PlayerDB::URLDone( const char* /*URL*/, const void * data, unsigned int size, bool complete )
 {
-    if (!webBusy)
-        return;
-
     std::string webData = (const char*)data;
 
     if (complete)
