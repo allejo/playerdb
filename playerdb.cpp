@@ -40,17 +40,20 @@ public:
 
     bool webBusy;
 
-    struct WebQuery {
+    struct WebQuery
+    {
         std::string
             query,
             bzID;
 
         int playerID;
 
-        void sendMessage (std::string message) {
+        void sendMessage (std::string message)
+        {
             std::unique_ptr<bz_BasePlayerRecord> pr(bz_getPlayerByIndex(playerID));
 
-            if (pr->verified && pr->bzID == bzID) {
+            if (pr->verified && pr->bzID == bzID)
+            {
                 bz_sendTextMessage(BZ_SERVER, playerID, message.c_str());
             }
         }
@@ -126,7 +129,7 @@ void PlayerDB::Event ( bz_EventData * eventData )
             postData += bz_format("&ipaddress=%s", bz_urlEncode(joinData->record->ipAddress.c_str()));
             postData += bz_format("&build=%s", bz_urlEncode(joinData->record->clientVersion.c_str()));
 
-            bz_addURLJob(URL.c_str(), NULL, postData.c_str());
+            bz_addURLJob(URL.c_str(), this, postData.c_str());
         }
         break;
 
@@ -156,6 +159,9 @@ void PlayerDB::nextQuery()
 
 void PlayerDB::URLDone( const char* /*URL*/, const void * data, unsigned int size, bool complete )
 {
+    if (!webBusy)
+        return;
+
     std::string webData = (const char*)data;
 
     if (complete)
