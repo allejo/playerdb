@@ -12,6 +12,11 @@ The plugin tracks when a player joins the server. It grabs the IP address, calls
 
 The plugin also exposes a /lookup command that can send queries to the web API.  The plugin does not do any special processing on the value passed to it, nor do it does any special processing on the resulting data it receives from the web API. This has been done with the hope that no changes to the plugin will be necessary to add additional types of queries, or to adjust the resulting output. The plugin simply sends all of the input it receives, and displays all of the resulting output.
 
+## Compiling Requirements
+
+- BZFlag 2.4.9+
+- C++11
+
 ## Usage
 
 ### Loading the plug-in
