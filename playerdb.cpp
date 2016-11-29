@@ -25,7 +25,7 @@
 class PlayerDB : public bz_Plugin, public bz_BaseURLHandler, public bz_CustomSlashCommandHandler
 {
 public:
-    virtual const char* Name () { return "Player DB"; }
+    virtual const char* Name () { return "Player DB 1.1.1"; }
     virtual void Init ( const char* config);
     virtual void Cleanup ();
     virtual void Event ( bz_EventData * eventData );
@@ -105,6 +105,7 @@ void PlayerDB::Init ( const char* configFile )
     bz_registerCustomSlashCommand("lookup", this);
 
     MaxWaitTime = 0.1f;
+    webBusy = false;
 }
 
 void PlayerDB::Cleanup ( void )
